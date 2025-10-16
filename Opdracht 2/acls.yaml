@@ -1,0 +1,288 @@
+acls:
+
+  # =========================
+  # OFFICE VLAN ACL
+  # =========================
+  office-vlan-acl:
+    # Infra toestaan
+    - rule:
+        dl_type: 0x0806
+        actions: { allow: 1 }             # ARP
+    - rule:
+        dl_type: 0x86dd
+        ip_proto: 58
+        actions: { allow: 1 }             # ICMPv6 (ND/RA)
+
+    # DHCPv4 toestaan (optioneel)
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 68
+        udp_dst: 67
+        actions: { allow: 1 }
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 67
+        udp_dst: 68
+        actions: { allow: 1 }
+
+    # Alleen SSH naar mgmt toestaan (IPv4)
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.10.0/28
+        ip_proto: 6
+        tcp_dst: 22
+        actions: { allow: 1 }
+
+    # Overig Office->Mgmt IPv4 blokkeren
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.10.0/28
+        actions: { allow: 0 }
+
+    # Alleen SSH naar mgmt toestaan (IPv6)
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:10::/64"
+        ip_proto: 6
+        tcp_dst: 22
+        actions: { allow: 1 }
+
+    # Overig Office->Mgmt IPv6 blokkeren
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:10::/64"
+        actions: { allow: 0 }
+
+    # Rest toestaan (WAN etc.)
+    - rule:
+        actions: { allow: 1 }
+
+  # =========================
+  # GUEST VLAN ACL
+  # =========================
+  guest-vlan-acl:
+    # Infra toestaan
+    - rule:
+        dl_type: 0x0806
+        actions: { allow: 1 }             # ARP
+    - rule:
+        dl_type: 0x86dd
+        ip_proto: 58
+        actions: { allow: 1 }             # ICMPv6 (ND/RA)
+
+    # DHCPv4 toestaan
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 68
+        udp_dst: 67
+        actions: { allow: 1 }
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 67
+        udp_dst: 68
+        actions: { allow: 1 }
+
+    # VIP/gateway uitzonderingen (eerst toestaan!)
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.200.254
+        actions: { allow: 1 }
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:200::1/128"
+        actions: { allow: 1 }
+
+    # Guest isolation / segmentatie (IPv4)
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.200.0/23     # geen guest->guest
+        actions: { allow: 0 }
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.100.0/23     # blokkeer naar office
+        actions: { allow: 0 }
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.10.0/28      # blokkeer naar mgmt
+        actions: { allow: 0 }
+
+    # Guest isolation / segmentatie (IPv6)
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:200::/64"   # geen guest->guest
+        actions: { allow: 0 }
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:100::/64"   # blokkeer naar office
+        actions: { allow: 0 }
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:10::/64"    # blokkeer naar mgmt
+        actions: { allow: 0 }
+
+    # Rest toestaan (WAN e.d.)
+    - rule:
+        actions: { allow: 1 }
+
+  # =========================
+  # GUEST RATE-LIMIT ACL (5 Mbit/s)
+  # =========================
+  guest-rate-limit:
+    # Infra & VIP eerst toestaan (niet limiteren)
+    - rule:
+        dl_type: 0x0806
+        actions: { allow: 1 }             # ARP
+    - rule:
+        dl_type: 0x86dd
+        ip_proto: 58
+        actions: { allow: 1 }             # ICMPv6 ND/RA
+
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 68
+        udp_dst: 67
+        actions: { allow: 1 }             # DHCPv4
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 67
+        udp_dst: 68
+        actions: { allow: 1 }             # DHCPv4
+
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.200.254
+        actions: { allow: 1 }             # VIP IPv4
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:200::1/128"
+        actions: { allow: 1 }             # VIP IPv6
+
+    # Alle overige guest-verkeer toestaan, maar onder meter 'guest-5m'
+    - rule:
+        actions:
+          allow: 1
+          meter: "guest-5m"
+
+  # =========================
+  # PROTECT-MGMT ACL
+  # =========================
+  protect-mgmt:
+    # Infra toestaan
+    - rule:
+        dl_type: 0x0806
+        actions: { allow: 1 }             # ARP
+    - rule:
+        dl_type: 0x86dd
+        ip_proto: 58
+        actions: { allow: 1 }             # ICMPv6 ND/RA
+
+    # DHCPv4 toestaan (optioneel)
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 68
+        udp_dst: 67
+        actions: { allow: 1 }
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_src: 67
+        udp_dst: 68
+        actions: { allow: 1 }
+
+    # Toegang tot mgmt-VIP toestaan
+    - rule:
+        dl_type: 0x0800
+        ipv4_dst: 10.0.10.14
+        actions: { allow: 1 }
+    - rule:
+        dl_type: 0x86dd
+        ipv6_dst: "2001:10::1/128"
+        actions: { allow: 1 }
+
+    # Veelgebruikte beheerprotocollen (optioneel)
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 1
+        actions: { allow: 1 }             # ICMPv4
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 17
+        udp_dst: 53
+        actions: { allow: 1 }             # DNS
+    - rule:
+        dl_type: 0x0800
+        ip_proto: 6
+        tcp_dst: 22
+        actions: { allow: 1 }             # SSH
+
+    # Default toestaan (maak strakker indien gewenst)
+    - rule:
+        actions: { allow: 1 }
+
+
+  # =========================
+  # MGMT PORT-SECURITY (per poort 1 MAC toegestaan)
+  # =========================
+
+  mgmt-port-Asw1-4:
+    - rule:
+        eth_src: "02:42:0a:00:0a:01"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Asw2-4:
+    - rule:
+        eth_src: "02:42:0a:00:0a:02"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Asw3-4:
+    - rule:
+        eth_src: "02:42:0a:00:0a:03"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Acore-10:
+    - rule:
+        eth_src: "02:42:0a:00:0a:04"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Bsw1-4:
+    - rule:
+        eth_src: "02:42:0a:00:0b:01"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Bsw2-4:
+    - rule:
+        eth_src: "02:42:0a:00:0b:02"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Bsw3-4:
+    - rule:
+        eth_src: "02:42:0a:00:0b:03"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
+
+  mgmt-port-Bcore-10:
+    - rule:
+        eth_src: "02:42:0a:00:0b:04"
+        actions: { allow: 1 }
+    - rule:
+        actions: { allow: 0 }
