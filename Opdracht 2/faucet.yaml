@@ -24,7 +24,7 @@ vlans:
     faucet_vips:
       - "10.0.200.254/23"
       - "2001:200::1/64"
-    acls_in: [guest-rate-limit, guest-vlan-acl]
+    acls_in: [guest-vlan-acl, guest-rate-limit]
 
 routers:
   router-a:
@@ -306,3 +306,4 @@ dps:
         max_hosts: 1
         permanent_learn: true
         acls_in: [mgmt-port-Bcore-10]
+
