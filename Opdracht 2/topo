@@ -1,0 +1,26 @@
+                          ┌───────────────────────────────┐                 ┌───────────────────────────────┐
+                          │            Gebouw A           │                 │            Gebouw B           │
+                          └───────────────────────────────┘                 └───────────────────────────────┘
+
+                                   [A-CORE] ──────────────── Darkfiber ──────────────── [B-CORE]
+
+                            (trunks tussen cores en floors: VLAN 10 / 100 / 200)
+
+                                  │                                                      │
+                                  │                                                      │
+                           [A-FLR2]  (etage 2)                                   [B-FLR3]  (etage 3)
+                           hosts: VLAN 10/100/200                                hosts: VLAN 10/100/200
+                           - mgmt: port-security                                 - mgmt: port-security
+                           - guest: rate-limit                                   - guest: rate-limit
+
+                                  │                                                      │
+                           [A-FLR1]  (etage 1)                                   [B-FLR2]  (etage 2)
+                           hosts: VLAN 10/100/200                                hosts: VLAN 10/100/200
+                           - mgmt: port-security                                 - mgmt: port-security
+                           - guest: rate-limit                                   - guest: rate-limit
+
+                                                                                      │
+                                                                                 [B-FLR1]  (etage 1)
+                                                                                 hosts: VLAN 10/100/200S
+                                                                                 - mgmt: port-security
+                                                                                 - guest: rate-limit

@@ -1,0 +1,311 @@
+---
+include:
+  - acls.yaml
+
+vlans:
+  mgmt:
+    vid: 10
+    description: "Management VLAN"
+    faucet_vips:
+      - "10.0.10.14/28"
+      - "2001:10::1/64"
+    acls_in: [protect-mgmt]
+
+  office:
+    vid: 100
+    description: "Office VLAN (/23)"
+    faucet_vips:
+      - "10.0.100.254/23"
+      - "2001:100::1/64"
+
+  guest:
+    vid: 200
+    description: "Guest VLAN (/23) - met 5 Mbit/s rate limit"
+    faucet_vips:
+      - "10.0.200.254/23"
+      - "2001:200::1/64"
+    acls_in: [guest-rate-limit, guest-vlan-acl]
+
+routers:
+  router-a:
+    # Inter-VLAN routing door Faucet (VIPs hierboven)
+    vlans: [mgmt, office, guest]
+
+
+  # ---------------------------
+  # OpenFlow meters (top-level)
+  # ---------------------------
+meters:
+  guest-5m:
+    meter_id: 200        # vrij id; uniek per DP
+    entry:
+      flags: [KBPS, BURST, STATS]
+      bands:
+        - type: DROP
+          rate: 5000     # 5000 kb/s ≈ 5 Mbit/s
+          burst_size: 500 # kb (afstemmen indien gewenst)
+
+dps:
+  # =======================
+  # Gebouw A
+  # =======================
+  Asw1:
+    dp_id: 0x1
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Af1h1"
+        description: "Office host begane grond 1"
+        native_vlan: office
+      2:
+        name: "Af1h2"
+        description: "Office host begane grond 2"
+        native_vlan: office
+      3:
+        name: "Af1g1"
+        description: "Guest host begane grond 1"
+        native_vlan: guest
+      4:
+        name: "Asvc1"
+        description: "Mgmt/services begane grond"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Asw1-4]
+
+      6:
+        name: "Af1g2"
+        description: "Guest host begane grond 2"
+        native_vlan: guest
+      7:
+        name: "uplink-to-Acore"
+        description: "Trunk naar Acore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Asw2:
+    dp_id: 0x2
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Af2h1"
+        description: "Office host 1e verdieping 1"
+        native_vlan: office
+      2:
+        name: "Af2h2"
+        description: "Office host 1e verdieping 2"
+        native_vlan: office
+      3:
+        name: "Af2g1"
+        description: "Guest host 1e verdieping 1"
+        native_vlan: guest
+      4:
+        name: "Asvc2"
+        description: "Mgmt/services 1e verdieping"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Asw2-4]
+
+      6:
+        name: "Af2g2"
+        description: "Guest host 1e verdieping 2"
+        native_vlan: guest
+      23:
+        name: "uplink-to-Acore"
+        description: "Trunk naar Acore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Asw3:
+    dp_id: 0x3
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Af3h1"
+        description: "Office host 2e verdieping 1"
+        native_vlan: office
+      2:
+        name: "Af3h2"
+        description: "Office host 2e verdieping 2"
+        native_vlan: office
+      3:
+        name: "Af3g1"
+        description: "Guest host 2e verdieping 1"
+        native_vlan: guest
+      4:
+        name: "Asvc3"
+        description: "Mgmt/services 2e verdieping"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Asw3-4]
+
+      6:
+        name: "Af3g2"
+        description: "Guest host 2e verdieping 2"
+        native_vlan: guest
+      24:
+        name: "uplink-to-Acore"
+        description: "Trunk naar Acore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Acore:
+    dp_id: 0x4
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "to-Asw1"
+        description: "Trunk vanaf Asw1"
+        tagged_vlans: [mgmt, office, guest]
+      2:
+        name: "to-Asw2"
+        description: "Trunk vanaf Asw2"
+        tagged_vlans: [mgmt, office, guest]
+      3:
+        name: "to-Asw3"
+        description: "Trunk vanaf Asw3"
+        tagged_vlans: [mgmt, office, guest]
+      5:
+        name: "to-Bcore"
+        description: "Core-to-core trunk naar Bcore"
+        tagged_vlans: [mgmt, office, guest]
+      6:
+        name: "to-NAT"
+        native_vlan: guest  # <-- access port naar Anat
+      10:
+        name: "Acore_mgmt"
+        description: "Management host aan core"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Acore-10]
+
+
+  # =======================
+  # Gebouw B (mirror van A)
+  # =======================
+  Bsw1:
+    dp_id: 0x5
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Bf1h1"
+        description: "Office host begane grond 1 (gebouw B)"
+        native_vlan: office
+      2:
+        name: "Bf1h2"
+        description: "Office host begane grond 2 (gebouw B)"
+        native_vlan: office
+      3:
+        name: "Bf1g1"
+        description: "Guest host begane grond 1 (gebouw B)"
+        native_vlan: guest
+      4:
+        name: "Bsvc1"
+        description: "Mgmt/services begane grond (gebouw B)"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Bsw1-4]
+
+      6:
+        name: "Bf1g2"
+        description: "Guest host begane grond 2 (gebouw B)"
+        native_vlan: guest
+      7:
+        name: "uplink-to-Bcore"
+        description: "Trunk naar Bcore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Bsw2:
+    dp_id: 0x6
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Bf2h1"
+        description: "Office host 1e verdieping 1 (gebouw B)"
+        native_vlan: office
+      2:
+        name: "Bf2h2"
+        description: "Office host 1e verdieping 2 (gebouw B)"
+        native_vlan: office
+      3:
+        name: "Bf2g1"
+        description: "Guest host 1e verdieping 1 (gebouw B)"
+        native_vlan: guest
+      4:
+        name: "Bsvc2"
+        description: "Mgmt/services 1e verdieping (gebouw B)"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Bsw2-4]
+
+      6:
+        name: "Bf2g2"
+        description: "Guest host 1e verdieping 2 (gebouw B)"
+        native_vlan: guest
+      23:
+        name: "uplink-to-Bcore"
+        description: "Trunk naar Bcore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Bsw3:
+    dp_id: 0x7
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "Bf3h1"
+        description: "Office host 2e verdieping 1 (gebouw B)"
+        native_vlan: office
+      2:
+        name: "Bf3h2"
+        description: "Office host 2e verdieping 2 (gebouw B)"
+        native_vlan: office
+      3:
+        name: "Bf3g1"
+        description: "Guest host 2e verdieping 1 (gebouw B)"
+        native_vlan: guest
+      4:
+        name: "Bsvc3"
+        description: "Mgmt/services 2e verdieping (gebouw B)"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Bsw3-4]
+
+      6:
+        name: "Bf3g2"
+        description: "Guest host 2e verdieping 2 (gebouw B)"
+        native_vlan: guest
+      24:
+        name: "uplink-to-Bcore"
+        description: "Trunk naar Bcore"
+        tagged_vlans: [mgmt, office, guest]
+
+  Bcore:
+    dp_id: 0x8
+    hardware: "Open vSwitch"
+    interfaces:
+      1:
+        name: "to-Bsw1"
+        description: "Trunk vanaf Bsw1"
+        tagged_vlans: [mgmt, office, guest]
+      2:
+        name: "to-Bsw2"
+        description: "Trunk vanaf Bsw2"
+        tagged_vlans: [mgmt, office, guest]
+      3:
+        name: "to-Bsw3"
+        description: "Trunk vanaf Bsw3"
+        tagged_vlans: [mgmt, office, guest]
+      5:
+        name: "to-Acore"
+        description: "Core-to-core trunk naar Acore"
+        tagged_vlans: [mgmt, office, guest]
+      10:
+        name: "Bcore_mgmt"
+        description: "Management host aan core (gebouw B)"
+        native_vlan: mgmt
+        max_hosts: 1
+        permanent_learn: true
+        acls_in: [mgmt-port-Bcore-10]
