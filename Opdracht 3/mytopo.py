@@ -274,11 +274,12 @@ def configure_nat_and_routes(net):
     info("    mininet> Bsvc2 ping -c3 Acore_mgmt    # management B ↔ A (VLAN 10)\n")
     info("    mininet> sh ovs-ofctl -O OpenFlow13 dump-ports Acore\n")
     info("    mininet> sh ovs-ofctl -O OpenFlow13 dump-ports Bcore\n")
-    info("    mininet> nat0 ping -c3 xxx.xxx.xxx.xxx")
+    info("    mininet> Af1g1 ping -c3 10.0.200.2    # Guest ping NAT")
 
     CLI(net)
     net.stop()
 
 if __name__ == "__main__":
     main()
+
 
