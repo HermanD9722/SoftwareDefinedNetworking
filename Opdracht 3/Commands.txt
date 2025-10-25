@@ -1,0 +1,14 @@
+Anat ip addr flush dev Anat-eth0
+Anat ip addr add 10.0.200.2/23 dev Anat-eth0
+Anat ip link set Anat-eth0 up
+
+Anat ip addr flush dev Anat-eth1
+Anat ip addr add 203.0.113.2/28 dev Anat-eth1
+Anat ip link set Anat-eth1 up
+
+IspA ip addr add 203.0.113.1/28 dev IspA-eth0 || true
+
+Anat ip route replace default via 203.0.113.1 dev Anat-eth1
+Anat sysctl -w net.ipv4.ip_forward=1
+Anat iptables -t nat -C POSTROUTING -o Anat-eth1 -j MASQUERADE || Anat iptables -t nat -A POSTROUTING -o Anat-eth1 -j MASQUERADE
+Anat iptables -P FORWARD ACCEPT
