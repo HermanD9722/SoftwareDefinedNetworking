@@ -31,6 +31,41 @@ def set_host_net(host, ipv4=None, gw4=None, ipv6=None, gw6=None):
     if gw6:
         host.cmd("ip -6 route replace default via %s" % gw6)
 
+def configure_nat_and_routes(net):
+    nat = net.get('Anat')
+    isp = net.get('IspA')
+
+    # LAN (guest) + WAN IP’s
+    nat.cmd('ip addr flush dev Anat-eth0')
+    nat.cmd('ip addr flush dev Anat-eth1')
+    nat.cmd('ip addr add 10.0.200.2/23 dev Anat-eth0')
+    nat.cmd('ip addr add 203.0.113.2/28 dev Anat-eth1')
+    nat.cmd('ip link set Anat-eth0 up')
+    nat.cmd('ip link set Anat-eth1 up')
+
+    # ISP peer
+    isp.cmd('ip addr flush dev IspA-eth0')
+    isp.cmd('ip addr add 203.0.113.1/28 dev IspA-eth0')
+    isp.cmd('ip link set IspA-eth0 up')
+
+    # NAT: routing + forwarding + MASQUERADE
+    nat.cmd('ip route replace default via 203.0.113.1 dev Anat-eth1')
+    nat.cmd('sysctl -w net.ipv4.ip_forward=1')
+    nat.cmd('iptables -t nat -C POSTROUTING -o Anat-eth1 -j MASQUERADE || '
+            'iptables -t nat -A POSTROUTING -o Anat-eth1 -j MASQUERADE')
+    nat.cmd('iptables -P FORWARD ACCEPT')
+
+    # Default route op alle guests (10.0.200.0/23) naar NAT
+    for h in net.hosts:
+        try:
+            ip = h.IP()
+        except Exception:
+            continue
+        if ip and ip.startswith('10.0.200.'):
+            h.cmd('ip route replace default via 10.0.200.2')
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mininet topo for Faucet config (Buildings A and B, L2 VLANs across cores)")
     parser.add_argument("--c_ip", default="127.0.0.1", help="Faucet controller IP")
@@ -159,6 +194,17 @@ def main():
     # =========================
     net.addLink(Acore, Bcore, port1=5, port2=5)
 
+    # --- NAT/ISP toevoegen ---
+    Anat = net.addHost("Anat")   # NAT host met 2 NICs
+    IspA = net.addHost("IspA")   # "internet" peer
+
+    # Acore -> NAT op vaste poort 6  (Acore-eth6 <-> Anat-eth0)
+    net.addLink(Acore, Anat, port1=6)
+
+    # NAT -> ISP (Anat-eth1 <-> IspA-eth0)
+    net.addLink(Anat, IspA)
+
+
 
     info("*** Starting network\n")
     net.build()
@@ -217,54 +263,7 @@ def main():
     set_host_net(Bf3g1, ipv4="10.0.200.24/23", gw4="10.0.200.2", ipv6="2001:200::24/64", gw6="2001:200::1")
     set_host_net(Bf3g2, ipv4="10.0.200.25/23", gw4="10.0.200.2", ipv6="2001:200::25/64", gw6="2001:200::1")
 
-    # NAT/ISP toevoegen
-    Anat = net.addHost("Anat")   # NAT host met 2 interfaces
-    IspA = net.addHost("IspA")   # "internet" peer
 
-    # Link Acore -> NAT op vaste poort 6 (Acore-eth6 <-> Anat-eth0)
-    net.addLink(Acore, Anat, port1=6)
-
-    # WAN-link NAT -> ISP (Anat-eth1 <-> IspA-eth0)
-    net.addLink(Anat, IspA)
-
-
-
-def configure_nat_and_routes(net):
-    """Configureer NAT-host (Anat) + ISP (IspA) en zet default routes op gasten."""
-    nat = net.get('Anat')
-    isp = net.get('IspA')
-
-    # LAN (guest) + WAN IP's
-    nat.cmd('ip addr flush dev Anat-eth0')
-    nat.cmd('ip addr flush dev Anat-eth1')
-    nat.cmd('ip addr add 10.0.200.2/23 dev Anat-eth0')
-    nat.cmd('ip addr add 203.0.113.2/28 dev Anat-eth1')
-    nat.cmd('ip link set Anat-eth0 up')
-    nat.cmd('ip link set Anat-eth1 up')
-
-    # ISP-peer
-    isp.cmd('ip addr flush dev IspA-eth0')
-    isp.cmd('ip addr add 203.0.113.1/28 dev IspA-eth0')
-    isp.cmd('ip link set IspA-eth0 up')
-
-    # NAT: default route + forwarding + MASQUERADE
-    nat.cmd('ip route replace default via 203.0.113.1 dev Anat-eth1')
-    nat.cmd('sysctl -w net.ipv4.ip_forward=1')
-    nat.cmd('iptables -t nat -C POSTROUTING -o Anat-eth1 -j MASQUERADE || '
-            'iptables -t nat -A POSTROUTING -o Anat-eth1 -j MASQUERADE')
-    nat.cmd('iptables -P FORWARD ACCEPT')
-
-    configure_nat_and_routes(net)
-
-    # Default route op alle guest-hosts (10.0.200.0/23) naar NAT
-    for h in net.hosts:
-        try:
-            ip = h.IP()
-        except Exception:
-            continue
-        if ip and ip.startswith('10.0.200.'):
-            h.cmd('ip route replace default via 10.0.200.2')
-    
 
     info("*** Topology is up. Use the CLI to test connectivity.\n")
     info("*** Examples:\n")
@@ -281,5 +280,6 @@ def configure_nat_and_routes(net):
 
 if __name__ == "__main__":
     main()
+
 
 
