@@ -159,9 +159,6 @@ def main():
     # =========================
     net.addLink(Acore, Bcore, port1=5, port2=5)
 
-    # Core-to-core trunk (A <-> B) met alle VLANs getagd
-    net.addLink(Acore, Bcore, port1=5, port2=5)
-
 
     info("*** Starting network\n")
     net.build()
@@ -284,3 +281,4 @@ def configure_nat_and_routes(net):
 
 if __name__ == "__main__":
     main()
+
